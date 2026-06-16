@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Royaume Sans Fin</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --gold:#f2c14e; --gold-dim:#c9982f; --gold-soft:#f6d98a;
+    --panel:rgba(22,18,34,.72); --panel-solid:#1a1528;
+    --ink:#f3ecdd; --ink-dim:#b7add0; --line:rgba(242,193,78,.28);
+    --wood:#c08552; --stone:#9aa3ad; --mana:#8a7bff; --ok:#74d68a; --bad:#e8736a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+  html,body{height:100%; overflow:hidden; background:#0d0a16;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink);
+    user-select:none; -webkit-user-select:none; touch-action:none}
+  .serif{font-family:Georgia,"Times New Roman",serif}
+  #scene{position:fixed; inset:0; z-index:0}
+
+  /* ---------- TOP: ressources ---------- */
+  #top{position:fixed; top:0; left:0; right:0; z-index:5; padding:max(8px,env(safe-area-inset-top)) 8px 8px;
+    display:flex; gap:6px; justify-content:center; flex-wrap:wrap}
+  .res{background:var(--panel); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border:1px solid var(--line); border-radius:12px; padding:6px 10px; min-width:84px;
+    display:flex; align-items:center; gap:7px}
+  .res .ic{font-size:18px; line-height:1}
+  .res .v{font-weight:700; font-size:15px; letter-spacing:.2px}
+  .res .r{font-size:10px; color:var(--ink-dim); margin-top:1px}
+  .res .col{display:flex; flex-direction:column; line-height:1.1}
+
+  /* title */
+  #brand{position:fixed; top:max(6px,env(safe-area-inset-top)); left:0; right:0; z-index:4;
+    text-align:center; pointer-events:none; opacity:.0}
+  #brand h1{font-size:13px; letter-spacing:3px; color:var(--gold-soft); font-weight:600}
+
+  /* ---------- CENTER: sceau de récolte ---------- */
+  #harvestWrap{position:fixed; left:0; right:0; bottom:calc(48% - 70px); z-index:5;
+    display:flex; flex-direction:column; align-items:center; pointer-events:none}
+  #harvest{pointer-events:auto; width:128px; height:128px; border-radius:50%;
+    background:radial-gradient(circle at 50% 35%, #ffe9a8, #f2c14e 45%, #b9821f 100%);
+    border:3px solid #fff3cf; box-shadow:0 10px 30px rgba(242,193,78,.45), inset 0 0 22px rgba(255,255,255,.35);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#3a2606; font-weight:800; transition:transform .07s ease; cursor:pointer}
+  #harvest:active{transform:scale(.92)}
+  #harvest .em{font-size:38px; filter:drop-shadow(0 1px 0 rgba(255,255,255,.6))}
+  #harvest .lbl{font-size:11px; letter-spacing:1px; margin-top:2px; text-transform:uppercase}
+  #combo{margin-top:10px; font-weight:800; font-size:18px; color:var(--gold-soft);
+    text-shadow:0 2px 8px rgba(0,0,0,.6); opacity:0; transition:opacity .2s; pointer-events:none}
+  #comboBar{width:140px; height:5px; border-radius:3px; background:rgba(255,255,255,.15); margin-top:6px; overflow:hidden; opacity:0; transition:opacity .2s}
+  #comboBar i{display:block; height:100%; width:0%; background:linear-gradient(90deg,#f6d98a,#f2c14e)}
+
+  /* floating gold numbers */
+  .float{position:fixed; z-index:6; pointer-events:none; font-weight:800; font-size:18px;
+    color:#fff3cf; text-shadow:0 2px 6px rgba(0,0,0,.6); animation:floatUp 1s ease-out forwards}
+  @keyframes floatUp{to{transform:translateY(-60px); opacity:0}}
+
+  /* ---------- BOTTOM: panneau ---------- */
+  #dock{position:fixed; left:0; right:0; bottom:0; z-index:7;
+    background:linear-gradient(180deg, rgba(22,18,34,.6), rgba(16,12,26,.96) 30%);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom)}
+  #tabs{display:flex; gap:4px; padding:8px 8px 0; overflow-x:auto}
+  .tab{flex:0 0 auto; padding:8px 13px; border-radius:10px 10px 0 0; font-size:12.5px; font-weight:700;
+    color:var(--ink-dim); background:transparent; border:1px solid transparent; cursor:pointer; white-space:nowrap}
+  .tab.on{color:#2a1f08; background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+    border-color:var(--gold)}
+  .tab .badge{display:inline-block; min-width:16px; padding:0 4px; margin-left:5px; border-radius:8px;
+    background:var(--bad); color:#fff; font-size:10px; font-weight:800; line-height:16px; text-align:center}
+  #panel{height:34vh; min-height:230px; max-height:340px; overflow-y:auto;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling:touch}
+
+  /* cards */
+  .card{display:flex; align-items:center; gap:11px; background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07); border-radius:13px; padding:10px 11px; margin-bottom:8px}
+  .card .ico{width:44px; height:44px; flex:0 0 44px; border-radius:11px; display:flex; align-items:center;
+    justify-content:center; font-size:24px; background:rgba(242,193,78,.1); border:1px solid var(--line)}
+  .card .mid{flex:1; min-width:0}
+  .card .nm{font-weight:700; font-size:14px; display:flex; align-items:center; gap:7px}
+  .card .lvl{font-size:11px; color:#2a1f08; background:var(--gold-soft); padding:1px 7px; border-radius:7px; font-weight:800}
+  .card .desc{font-size:11.5px; color:var(--ink-dim); margin-top:2px; line-height:1.35}
+  .card .cost{font-size:12px; margin-top:4px; display:flex; gap:9px; flex-wrap:wrap}
+  .card .cost span{display:inline-flex; align-items:center; gap:3px}
+  .card .cost .no{color:var(--bad)}
+  .card .cost .yes{color:var(--ink)}
+  .buy{flex:0 0 auto; align-self:stretch; min-width:74px; padding:0 14px; border-radius:11px; border:none;
+    font-weight:800; font-size:13px; cursor:pointer; background:linear-gradient(180deg,var(--gold-soft),var(--gold-dim));
+    color:#2a1f08; display:flex; align-items:center; justify-content:center}
+  .buy:disabled{opacity:.4; filter:grayscale(.5)}
+  .buy.alt{background:linear-gradient(180deg,#b9aef0,#7c6fd6); color:#150f2e}
+  .locked{opacity:.55}
+  .hint{font-size:11.5px; color:var(--ink-dim); text-align:center; padding:14px 8px; line-height:1.5}
+  .secTitle{font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--gold-soft);
+    margin:4px 2px 8px; font-weight:700}
+
+  /* choice (décret) */
+  .choices{display:flex; flex-direction:column; gap:8px}
+  .choice{border:1px solid var(--line); border-radius:13px; padding:11px 12px; background:rgba(242,193,78,.05); cursor:pointer}
+  .choice:active{background:rgba(242,193,78,.12)}
+  .choice .ct{font-weight:700; font-size:13.5px}
+  .choice .cd{font-size:11.5px; color:var(--ink-dim); margin-top:2px}
+  .chosen{outline:2px solid var(--gold); background:rgba(242,193,78,.14)}
+
+  /* ---------- modal (events / offline) ---------- */
+  #modalWrap{position:fixed; inset:0; z-index:20; background:rgba(8,6,14,.66); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; padding:20px}
+  #modal{width:100%; max-width:380px; background:var(--panel-solid); border:1px solid var(--line);
+    border-radius:18px; padding:18px; box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  #modal .mTtl{font-size:18px; font-weight:700; margin-bottom:4px}
+  #modal .mEm{font-size:40px; text-align:center; margin:4px 0 10px}
+  #modal .mBody{font-size:13.5px; color:var(--ink-dim); line-height:1.5; margin-bottom:14px}
+  #modal .mBtns{display:flex; flex-direction:column; gap:8px}
+  .mBtn{padding:12px; border-radius:12px; border:1px solid var(--line); background:rgba(242,193,78,.08);
+    color:var(--ink); font-weight:700; font-size:13.5px; cursor:pointer; text-align:left}
+  .mBtn:active{background:rgba(242,193,78,.18)}
+  .mBtn small{display:block; color:var(--ink-dim); font-weight:500; margin-top:2px}
+  .mBtn.primary{background:linear-gradient(180deg,var(--gold-soft),var(--gold-dim)); color:#2a1f08; text-align:center; border:none}
+
+  /* toast */
+  #toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(38vh + 14px); z-index:15;
+    background:var(--panel-solid); border:1px solid var(--line); padding:9px 14px; border-radius:11px;
+    font-size:12.5px; font-weight:600; opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; max-width:88vw; text-align:center}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
+
+  ::-webkit-scrollbar{width:0; height:0}
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="brand"><h1 class="serif">ROYAUME SANS FIN</h1></div>
+
+<div id="top"></div>
+
+<div id="harvestWrap">
+  <div id="harvest"><span class="em">👑</span><span class="lbl">Récolter</span></div>
+  <div id="combo"></div>
+  <div id="comboBar"><i></i></div>
+</div>
+
+<div id="toast"></div>
+
+<div id="dock">
+  <div id="tabs"></div>
+  <div id="panel"></div>
+</div>
+
+<div id="modalWrap"><div id="modal"></div></div>
+
+<script>
+/* =========================================================
+   ROYAUME SANS FIN — idle fantasy low-poly
+   ========================================================= */
+
+const $ = s => document.querySelector(s);
+const fmt = n => {
+  n = Math.floor(n);
+  if (n < 1000) return ''+n;
+  const u = ['','K','M','B','T','aa','ab','ac','ad','ae','af'];
+  let t = 0; while (n >= 1000 && t < u.length-1){ n/=1000; t++; }
+  return (n<10?n.toFixed(2):n<100?n.toFixed(1):Math.floor(n))+u[t];
+};
+
+/* ---------- RESSOURCES ---------- */
+const RES = {
+  gold:  {ic:'🪙', nm:'Or'},
+  wood:  {ic:'🪵', nm:'Bois'},
+  stone: {ic:'🪨', nm:'Pierre'},
+  mana:  {ic:'✨', nm:'Mana'},
+};
+
+/* ---------- BÂTIMENTS ----------
+   model: forme low-poly | prod: {res:perLevelPerSec} | cost base + growth
+*/
+const BUILDINGS = [
+  {id:'farm',    nm:'Ferme',            em:'🌾', model:'farm',  desc:'Récoltes vendues au marché.',
+   cost:{gold:15}, growth:1.15, prod:{gold:0.8}},
+  {id:'lodge',   nm:'Cabane de bûcheron', em:'🪓', model:'house', color:0x8a5a2b, desc:'Abat les arbres alentour.',
+   cost:{gold:35}, growth:1.16, prod:{wood:0.6}},
+  {id:'quarry',  nm:'Carrière',         em:'⛏️', model:'rocks', desc:'Extrait la pierre de la falaise.',
+   cost:{gold:80, wood:30}, growth:1.17, prod:{stone:0.5}},
+  {id:'house',   nm:'Maison',           em:'🏠', model:'house', color:0xb86f4a, desc:'Population : +4% à TOUTE la production passive par niveau.',
+   cost:{gold:120, wood:40}, growth:1.22, prod:{}, special:'pop'},
+  {id:'tower',   nm:'Tour de mana',     em:'🔮', model:'tower', color:0x6a5acd, desc:'Canalise l\'éther en mana.',
+   cost:{gold:200, stone:60}, growth:1.18, prod:{mana:0.4}},
+  {id:'mill',    nm:'Moulin',           em:'🌬️', model:'tower', color:0xc2a878, desc:'Double la production des Fermes par niveau (+100%/niv).',
+   cost:{gold:450, wood:120}, growth:1.25, prod:{}, special:'mill'},
+  {id:'market',  nm:'Marché',           em:'🏪', model:'house', color:0xd2a24c, desc:'+6% à la production d\'Or par niveau.',
+   cost:{gold:900, wood:200, stone:120}, growth:1.24, prod:{}, special:'market'},
+  {id:'forge',   nm:'Forge',            em:'⚒️', model:'house', color:0x55504e, desc:'Transforme le minerai : gros revenus d\'Or.',
+   cost:{gold:1500, stone:300}, growth:1.2, prod:{gold:9}},
+  {id:'library', nm:'Bibliothèque',     em:'📚', model:'tower', color:0x4f7a9c, desc:'Savoir ancien : Mana abondant. Débloque des recherches.',
+   cost:{gold:3200, stone:500}, growth:1.21, prod:{mana:3}},
+  {id:'castle',  nm:'Château',          em:'🏰', model:'castle', desc:'Le cœur du royaume. Or massif + prestige.',
+   cost:{gold:9000, wood:1500, stone:1500}, growth:1.3, prod:{gold:40}},
+];
+
+/* ---------- RECHERCHES (one-time, coûtent surtout du mana) ---------- */
+const RESEARCH = [
+  {id:'axes',   nm:'Haches de fer',      em:'🪓', desc:'Production de Bois ×2.',
+   cost:{mana:60}, eff:{prodMul:{wood:2}}, req:{}},
+  {id:'picks',  nm:'Pics renforcés',     em:'⛏️', desc:'Production de Pierre ×2.',
+   cost:{mana:90}, eff:{prodMul:{stone:2}}, req:{}},
+  {id:'plow',   nm:'Charrue lourde',     em:'🐂', desc:'Production d\'Or des Fermes ×2.',
+   cost:{mana:140, gold:500}, eff:{farmMul:2}, req:{}},
+  {id:'trade',  nm:'Routes commerciales',em:'🧭', desc:'TOUTE production d\'Or +50%.',
+   cost:{mana:220, gold:2000}, eff:{globalGold:1.5}, req:{}},
+  {id:'runes',  nm:'Cristaux runiques',  em:'💎', desc:'Production de Mana ×2.',
+   cost:{mana:300}, eff:{prodMul:{mana:2}}, req:{library:1}},
+  {id:'arch',   nm:'Architecture',       em:'📐', desc:'Coût de TOUS les bâtiments −15%.',
+   cost:{mana:400, gold:4000}, eff:{costMul:0.85}, req:{}},
+  {id:'spell',  nm:'Grimoire de récolte',em:'📖', desc:'Le Sceau de récolte rapporte ×3.',
+   cost:{mana:550}, eff:{harvestMul:3}, req:{library:1}},
+  {id:'thrive', nm:'Âge de prospérité',  em:'🌟', desc:'Effet des Maisons ×2 + production passive +25%.',
+   cost:{mana:800, gold:8000}, eff:{popMul:2, globalProd:1.25}, req:{house:5}},
+];
+
+/* ---------- DÉCRETS (choix EXCLUSIFS par palier) ---------- */
+const DECREES = [
+  {id:'set1', nm:'Premier décret royal', reqGold:300, options:[
+    {id:'commerce', nm:'Édit du Commerce',  desc:'Production d\'Or +35%.',        eff:{globalGold:1.35}},
+    {id:'nature',   nm:'Édit de la Nature', desc:'Bois & Pierre +35%.',           eff:{prodMul:{wood:1.35, stone:1.35}}},
+    {id:'arcane',   nm:'Édit Arcanique',    desc:'Mana +50%.',                    eff:{prodMul:{mana:1.5}}},
+  ]},
+  {id:'set2', nm:'Second décret royal', reqGold:50000, options:[
+    {id:'levy',  nm:'Conscription',  desc:'Sceau de récolte +250%.',              eff:{harvestMul:3.5}},
+    {id:'boom',  nm:'Prospérité',    desc:'Production passive +45%.',             eff:{globalProd:1.45}},
+    {id:'thrift',nm:'Frugalité',     desc:'Coût des bâtiments −30%.',             eff:{costMul:0.7}},
+  ]},
+];
+
+/* ---------- ASCENSION (prestige) ---------- */
+const RELIC_UP = [
+  {id:'bless', nm:'Bénédiction',  em:'🙏', desc:'+8% production globale par niveau.', baseCost:1, growth:1.6, max:50},
+  {id:'legacy',nm:'Héritage',     em:'👑', desc:'Commence chaque ère avec +250 Or × niveau.', baseCost:1, growth:1.8, max:30},
+  {id:'wisdom',nm:'Sagesse',      em:'🦉', desc:'Coût des recherches −6% par niveau.', baseCost:2, growth:1.7, max:12},
+  {id:'fervor',nm:'Ferveur',      em:'🔥', desc:'Sceau de récolte +30% par niveau.', baseCost:1, growth:1.55, max:40},
+];
+
+/* =========================================================
+   STATE
+   ========================================================= */
+const NEW_GAME = () => ({
+  res:{gold:50, wood:0, stone:0, mana:0},
+  lvl:{}, research:[], decrees:{}, relicUp:{}, relics:0,
+  totalGold:0, lifetimeGold:0,
+  combo:0, comboT:0,
+  lastSave:Date.now(),
+  tab:'build', firstDecreeSeen:false,
+});
+let S = NEW_GAME();
+let tempBuffs = []; // {mul, prod?, until}
+
+/* =========================================================
+   PERSISTENCE (window.storage avec fallback mémoire)
+   ========================================================= */
+const KEY='rsf_save_v1';
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); return true; }catch(e){ return false; } }
+
+async function save(){
+  S.lastSave=Date.now();
+  const data=JSON.stringify(S);
+  lsSet(KEY, data);                                   // primaire : marche dans Safari / webview
+  try{ if(window.storage) await window.storage.set(KEY, data); }catch(e){}  // secours
+}
+async function load(){
+  let raw = lsGet(KEY);                                // d'abord le stockage local
+  if(!raw){ try{ if(window.storage){ const r=await window.storage.get(KEY); raw=r?r.value:null; } }catch(e){} }
+  if(!raw) return false;
+  try{ const d=JSON.parse(raw); S=Object.assign(NEW_GAME(), d); S.res=Object.assign({gold:0,wood:0,stone:0,mana:0},d.res||{}); return true; }
+  catch(e){ return false; }
+}
+
+/* =========================================================
+   EFFETS CALCULÉS
+   ========================================================= */
+function hasR(id){ return S.research.includes(id); }
+function relicLvl(id){ return S.relicUp[id]||0; }
+
+function effects(){
+  const e = {
+    prodMul:{gold:1,wood:1,stone:1,mana:1},
+    globalProd:1, globalGold:1, farmMul:1, popMul:1,
+    costMul:1, harvestMul:1, researchCostMul:1,
+  };
+  // recherches
+  RESEARCH.forEach(r=>{ if(hasR(r.id)){
+    const f=r.eff;
+    if(f.prodMul) for(const k in f.prodMul) e.prodMul[k]*=f.prodMul[k];
+    if(f.globalGold) e.globalGold*=f.globalGold;
+    if(f.globalProd) e.globalProd*=f.globalProd;
+    if(f.farmMul) e.farmMul*=f.farmMul;
+    if(f.costMul) e.costMul*=f.costMul;
+    if(f.harvestMul) e.harvestMul*=f.harvestMul;
+    if(f.popMul) e.popMul*=f.popMul;
+  }});
+  // décrets
+  DECREES.forEach(set=>{ const ch=S.decrees[set.id]; if(!ch) return;
+    const opt=set.options.find(o=>o.id===ch); if(!opt) return; const f=opt.eff;
+    if(f.prodMul) for(const k in f.prodMul) e.prodMul[k]*=f.prodMul[k];
+    if(f.globalGold) e.globalGold*=f.globalGold;
+    if(f.globalProd) e.globalProd*=f.globalProd;
+    if(f.harvestMul) e.harvestMul*=f.harvestMul;
+    if(f.costMul) e.costMul*=f.costMul;
+  });
+  // reliques
+  e.globalProd *= 1 + 0.08*relicLvl('bless');
+  e.globalGold *= 1 + 0.08*relicLvl('bless'); // bénédiction touche tout via globalProd, l'or aussi
+  e.harvestMul *= 1 + 0.30*relicLvl('fervor');
+  e.researchCostMul *= Math.pow(0.94, relicLvl('wisdom'));
+  // pop (maisons) & marché & moulin
+  const houses=S.lvl['house']||0;
+  e.globalProd *= 1 + 0.04*houses*e.popMul;
+  const market=S.lvl['market']||0;
+  e.globalGold *= 1 + 0.06*market;
+  return e;
+}
+
+function prodPerSec(){
+  const e=effects(); const out={gold:0,wood:0,stone:0,mana:0};
+  BUILDINGS.forEach(b=>{
+    const L=S.lvl[b.id]||0; if(!L||!b.prod) return;
+    for(const k in b.prod){
+      let v=b.prod[k]*L*e.globalProd*e.prodMul[k];
+      if(k==='gold'){ v*=e.globalGold; if(b.id==='farm'){ v*=e.farmMul; v*=1+1*(S.lvl['mill']||0);} }
+      out[k]+=v;
+    }
+  });
+  // buffs temporaires
+  const now=Date.now();
+  tempBuffs=tempBuffs.filter(b=>b.until>now);
+  tempBuffs.forEach(b=>{ for(const k in out) out[k]*=b.mul; });
+  return out;
+}
+
+function harvestValue(){
+  const e=effects();
+  const ps=prodPerSec().gold;
+  const base=Math.max(2, ps*3); // 3s de prod d'or par clic
+  const comboMul=1+Math.min(S.combo,50)*0.08;
+  return base*comboMul*e.harvestMul;
+}
+
+/* coût courant d'un bâtiment (avec costMul) */
+function buildCost(b){
+  const L=S.lvl[b.id]||0; const e=effects(); const c={};
+  for(const k in b.cost) c[k]=Math.ceil(b.cost[k]*Math.pow(b.growth,L)*e.costMul);
+  return c;
+}
+function canAfford(c){ for(const k in c) if(S.res[k]<c[k]) return false; return true; }
+function pay(c){ for(const k in c) S.res[k]-=c[k]; }
+
+/* =========================================================
+   THREE.JS — île low-poly
+   ========================================================= */
+let renderer, scene, camera, island, buildGroup, decoGroup;
+const slots = []; // positions des bâtiments
+const meshes = {}; // id -> group
+
+function initScene(){
+  const el=$('#scene');
+  scene=new THREE.Scene();
+  scene.fog=new THREE.Fog(0x2a2140, 22, 52);
+
+  camera=new THREE.PerspectiveCamera(48, innerWidth/innerHeight, 0.1, 200);
+
+  renderer=new THREE.WebGLRenderer({antialias:true, alpha:false});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  el.appendChild(renderer.domElement);
+
+  // ciel dégradé crépuscule
+  scene.background = makeSky();
+
+  // lumières
+  const sun=new THREE.DirectionalLight(0xfff0d0, 1.35);
+  sun.position.set(-9,16,7); sun.castShadow=true;
+  sun.shadow.mapSize.set(1024,1024);
+  const d=16; Object.assign(sun.shadow.camera,{left:-d,right:d,top:d,bottom:-d,near:1,far:60});
+  scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0xbfa7ff, 0x3a2c4f, 0.55));
+  scene.add(new THREE.AmbientLight(0x554a6e, 0.5));
+
+  // île
+  island=new THREE.Group(); scene.add(island);
+  buildGroup=new THREE.Group(); island.add(buildGroup);
+  decoGroup=new THREE.Group(); island.add(decoGroup);
+  buildIsland();
+
+  // slots en spirale sur l'île
+  const N=BUILDINGS.length;
+  for(let i=0;i<N;i++){
+    const ang=i*2.399; const rad=2.2+Math.sqrt(i)*1.55;
+    slots.push(new THREE.Vector3(Math.cos(ang)*rad, 0, Math.sin(ang)*rad));
+  }
+
+  addDecor();
+  positionCamera();
+  animate();
+  window.addEventListener('resize', onResize);
+  setupDrag();
+}
+
+function makeSky(){
+  const c=document.createElement('canvas'); c.width=2; c.height=256;
+  const g=c.getContext('2d').createLinearGradient(0,0,0,256);
+  g.addColorStop(0,'#241a3e'); g.addColorStop(.45,'#3d2a55'); g.addColorStop(.75,'#7a4a6b'); g.addColorStop(1,'#e0916b');
+  const ctx=c.getContext('2d'); ctx.fillStyle=g; ctx.fillRect(0,0,2,256);
+  const t=new THREE.CanvasTexture(c); return t;
+}
+
+function mat(color, rough=0.95){ return new THREE.MeshStandardMaterial({color, roughness:rough, metalness:0, flatShading:true}); }
+
+function buildIsland(){
+  // plateforme herbe (cylindre peu segmenté)
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(10,10,1.2,9,1), mat(0x6cae5e));
+  top.position.y=-0.6; top.receiveShadow=true; island.add(top);
+  // terre dessous (cône inversé pour effet flottant)
+  const dirt=new THREE.Mesh(new THREE.ConeGeometry(9.6,7,9,1), mat(0x7a5236));
+  dirt.position.y=-4.4; dirt.rotation.y=Math.PI/9; island.add(dirt);
+  // petite falaise / rochers du bord
+  for(let i=0;i<9;i++){ const a=i/9*Math.PI*2;
+    const r=new THREE.Mesh(new THREE.DodecahedronGeometry(0.8+Math.random()*0.6,0), mat(0x6b4a30));
+    r.position.set(Math.cos(a)*9.4, -1.4, Math.sin(a)*9.4); r.rotation.set(Math.random(),Math.random(),Math.random());
+    r.castShadow=true; island.add(r);
+  }
+  // étang
+  const pond=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,0.2,12), 
+    new THREE.MeshStandardMaterial({color:0x4aa6c9, roughness:0.2, metalness:0.1, flatShading:true}));
+  pond.position.set(-4,0.05,4.5); island.add(pond);
+}
+
+function addDecor(){
+  // arbres low-poly épars
+  const treePos=[[5,3],[6.5,-1],[-3,-5],[2,6],[-6,1],[7,4],[-5,5]];
+  treePos.forEach(([x,z])=>{
+    const g=new THREE.Group();
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.24,1,5), mat(0x6b4423));
+    trunk.position.y=0.5; trunk.castShadow=true; g.add(trunk);
+    const leaf=new THREE.Mesh(new THREE.ConeGeometry(0.9,1.6,6), mat(0x4f9d52));
+    leaf.position.y=1.6; leaf.castShadow=true; g.add(leaf);
+    const leaf2=new THREE.Mesh(new THREE.ConeGeometry(0.65,1.2,6), mat(0x5bb05e));
+    leaf2.position.y=2.3; leaf2.castShadow=true; g.add(leaf2);
+    g.position.set(x,0,z); g.scale.setScalar(0.7+Math.random()*0.4); decoGroup.add(g);
+  });
+  // nuages flottants
+  for(let i=0;i<5;i++){
+    const cl=new THREE.Group();
+    for(let j=0;j<3;j++){ const p=new THREE.Mesh(new THREE.DodecahedronGeometry(0.9+Math.random()*0.6,0),
+      new THREE.MeshStandardMaterial({color:0xe9def7, roughness:1, flatShading:true, transparent:true, opacity:.85}));
+      p.position.set(j*0.9-0.9, Math.random()*0.3, Math.random()*0.4); cl.add(p); }
+    cl.position.set((Math.random()-0.5)*26, 6+Math.random()*4, (Math.random()-0.5)*26);
+    cl.userData.drift=0.2+Math.random()*0.3; decoGroup.add(cl); cl.name='cloud';
+  }
+}
+
+/* ---- modèles de bâtiment ---- */
+function makeBuilding(b){
+  const g=new THREE.Group();
+  const col=b.color||0xcccccc;
+  if(b.model==='house'||b.model==='farm'){
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.9,1.1), mat(b.model==='farm'?0xe8d6a8:col));
+    body.position.y=0.45; body.castShadow=true; g.add(body);
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(0.95,0.7,4), mat(0x9c3b2e));
+    roof.position.y=1.25; roof.rotation.y=Math.PI/4; roof.castShadow=true; g.add(roof);
+    if(b.model==='farm'){ for(let i=0;i<3;i++){ const f=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.9), mat(0xc9a24a));
+      f.position.set(-0.6+i*0.6,0.05,0); g.add(f);} }
+  } else if(b.model==='tower'){
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.62,1.7,7), mat(col));
+    body.position.y=0.85; body.castShadow=true; g.add(body);
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(0.7,0.9,7), mat(0x6a3f8a));
+    roof.position.y=2.1; roof.castShadow=true; g.add(roof);
+  } else if(b.model==='rocks'){
+    for(let i=0;i<5;i++){ const r=new THREE.Mesh(new THREE.DodecahedronGeometry(0.35+Math.random()*0.3,0), mat(0x8b9097));
+      r.position.set((Math.random()-0.5)*1.1, 0.2+Math.random()*0.3, (Math.random()-0.5)*1.1);
+      r.rotation.set(Math.random(),Math.random(),Math.random()); r.castShadow=true; g.add(r);} 
+  } else if(b.model==='castle'){
+    const keep=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.5,1.5), mat(0xbfb6a8));
+    keep.position.y=0.75; keep.castShadow=true; g.add(keep);
+    [[-0.75,-0.75],[0.75,-0.75],[-0.75,0.75],[0.75,0.75]].forEach(([x,z])=>{
+      const t=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.36,1.9,6), mat(0xcfc6b6));
+      t.position.set(x,0.95,z); t.castShadow=true; g.add(t);
+      const cn=new THREE.Mesh(new THREE.ConeGeometry(0.42,0.6,6), mat(0x9c3b2e)); cn.position.set(x,2.1,z); g.add(cn);
+    });
+  }
+  return g;
+}
+
+function refreshBuilding(b){
+  const L=S.lvl[b.id]||0;
+  const slot=slots[BUILDINGS.indexOf(b)];
+  if(!meshes[b.id]){
+    if(L<=0) return;
+    const m=makeBuilding(b); m.position.copy(slot); m.userData.pop=0; buildGroup.add(m); meshes[b.id]=m;
+    m.userData.grow=0;
+  }
+  const m=meshes[b.id];
+  // taille selon niveau (croissance douce, plafonnée)
+  const target=0.6+Math.min(L,40)*0.03;
+  m.userData.targetScale=target;
+  // petits cubes supplémentaires tous les 5 niveaux (densité visuelle)
+  const extras=Math.min(Math.floor(L/5),5);
+  while((m.userData.extra||0)<extras){
+    m.userData.extra=(m.userData.extra||0)+1;
+    const e=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.4,0.4), mat(b.color||0xd9c9a0));
+    const a=Math.random()*6.28; e.position.set(Math.cos(a)*0.95,0.2,Math.sin(a)*0.95); e.castShadow=true; m.add(e);
+  }
+}
+
+function refreshAllBuildings(){ BUILDINGS.forEach(refreshBuilding); }
+
+/* caméra orbitale */
+let camAng=0.6, camTargetAng=0.6, camHeight=11, camDist=20, autoRot=true;
+function positionCamera(){ updateCam(); }
+function updateCam(){
+  camera.position.set(Math.cos(camAng)*camDist, camHeight, Math.sin(camAng)*camDist);
+  camera.lookAt(0,0.5,0);
+}
+function setupDrag(){
+  let down=false, lx=0;
+  const el=renderer.domElement;
+  const start=x=>{down=true; lx=x; autoRot=false;};
+  const move=x=>{ if(!down) return; camTargetAng-=(x-lx)*0.01; camAng=camTargetAng; lx=x; updateCam(); };
+  const end=()=>{ down=false; setTimeout(()=>autoRot=true,2500); };
+  el.addEventListener('touchstart',e=>start(e.touches[0].clientX),{passive:true});
+  el.addEventListener('touchmove',e=>move(e.touches[0].clientX),{passive:true});
+  el.addEventListener('touchend',end);
+  el.addEventListener('mousedown',e=>start(e.clientX));
+  el.addEventListener('mousemove',e=>move(e.clientX));
+  el.addEventListener('mouseup',end);
+}
+function onResize(){ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); }
+
+let lastT=performance.now();
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now(), dt=(now-lastT)/1000; lastT=now;
+  if(autoRot){ camTargetAng+=dt*0.06; camAng=camTargetAng; updateCam(); }
+  // croissance des bâtiments
+  for(const id in meshes){ const m=meshes[id]; const t=m.userData.targetScale||0.6;
+    const s=m.scale.x + (t-m.scale.x)*Math.min(1,dt*4); m.scale.setScalar(s);
+    m.rotation.y += dt*0.0; }
+  // nuages dérivent
+  decoGroup.children.forEach(c=>{ if(c.name==='cloud'){ c.position.x+=c.userData.drift*dt; if(c.position.x>16) c.position.x=-16; }});
+  renderer.render(scene,camera);
+}
+
+/* =========================================================
+   UI
+   ========================================================= */
+function renderTop(){
+  const top=$('#top'); const ps=prodPerSec();
+  top.innerHTML='';
+  for(const k in RES){
+    const showRate = ps[k] > 0.0001;
+    const div=document.createElement('div'); div.className='res';
+    div.innerHTML=`<span class="ic">${RES[k].ic}</span><div class="col">
+      <span class="v">${fmt(S.res[k])}</span>
+      ${showRate?`<span class="r">+${fmt(ps[k]*10)/10>0?(ps[k]).toFixed(ps[k]<10?1:0):0}/s</span>`:`<span class="r">${RES[k].nm}</span>`}</div>`;
+    top.appendChild(div);
+  }
+  if(S.relics>0){
+    const div=document.createElement('div'); div.className='res'; div.style.borderColor='rgba(170,140,255,.5)';
+    div.innerHTML=`<span class="ic">✦</span><div class="col"><span class="v" style="color:#c9b8ff">${fmt(S.relics)}</span><span class="r">Reliques</span></div>`;
+    top.appendChild(div);
+  }
+}
+
+const TABS=[
+  {id:'build', nm:'Bâtiments'},
+  {id:'research', nm:'Recherches'},
+  {id:'decree', nm:'Décrets'},
+  {id:'ascend', nm:'Ascension'},
+];
+function pendingDecree(){ for(const set of DECREES){ if(!S.decrees[set.id] && S.lifetimeGold>=set.reqGold) return true; } return false; }
+
+function renderTabs(){
+  const t=$('#tabs'); t.innerHTML='';
+  TABS.forEach(tb=>{
+    const b=document.createElement('button'); b.className='tab'+(S.tab===tb.id?' on':'');
+    let badge='';
+    if(tb.id==='decree' && pendingDecree()) badge='<span class="badge">!</span>';
+    b.innerHTML=tb.nm+badge;
+    b.onclick=()=>{ S.tab=tb.id; renderTabs(); renderPanel(); };
+    t.appendChild(b);
+  });
+}
+
+function costHTML(c){
+  return Object.keys(c).map(k=>{
+    const ok=S.res[k]>=c[k];
+    return `<span class="${ok?'yes':'no'}">${RES[k].ic} ${fmt(c[k])}</span>`;
+  }).join('');
+}
+
+function renderPanel(){
+  const p=$('#panel'); p.innerHTML='';
+  if(S.tab==='build') renderBuild(p);
+  else if(S.tab==='research') renderResearch(p);
+  else if(S.tab==='decree') renderDecree(p);
+  else if(S.tab==='ascend') renderAscend(p);
+}
+
+function buildingUnlocked(b){
+  const i=BUILDINGS.indexOf(b);
+  if(i===0) return true;
+  // débloqué si le précédent a niveau >=1
+  const prev=BUILDINGS[i-1];
+  return (S.lvl[prev.id]||0)>=1;
+}
+
+function renderBuild(p){
+  BUILDINGS.forEach(b=>{
+    const L=S.lvl[b.id]||0;
+    const unlocked=buildingUnlocked(b);
+    if(!unlocked && L===0){
+      const prev=BUILDINGS[BUILDINGS.indexOf(b)-1];
+      const card=document.createElement('div'); card.className='card locked';
+      card.innerHTML=`<div class="ico">🔒</div><div class="mid"><div class="nm">? ? ?</div>
+        <div class="desc">Construis « ${prev.nm} » pour révéler ce bâtiment.</div></div>`;
+      p.appendChild(card); return;
+    }
+    const c=buildCost(b); const ok=canAfford(c);
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML=`
+      <div class="ico">${b.em}</div>
+      <div class="mid">
+        <div class="nm">${b.nm} ${L>0?`<span class="lvl">Niv ${L}</span>`:''}</div>
+        <div class="desc">${b.desc}</div>
+        <div class="cost">${costHTML(c)}</div>
+      </div>`;
+    const btn=document.createElement('button'); btn.className='buy'; btn.disabled=!ok;
+    btn.innerHTML=L>0?'Améliorer':'Construire';
+    btn.onclick=()=>{ if(!canAfford(buildCost(b))) return; pay(buildCost(b)); S.lvl[b.id]=(S.lvl[b.id]||0)+1;
+      refreshBuilding(b); fullRender(); pulseHarvest(); save(); };
+    card.appendChild(btn); p.appendChild(card);
+  });
+}
+
+function renderResearch(p){
+  const lib=(S.lvl['library']||0)>=1;
+  const avail=RESEARCH.filter(r=>!hasR(r.id) && Object.keys(r.req||{}).every(k=>(S.lvl[k]||0)>=r.req[k]));
+  const done=RESEARCH.filter(r=>hasR(r.id));
+  const e=effects();
+  if(avail.length===0 && done.length===0){
+    p.innerHTML=`<div class="hint">Les recherches se débloquent en développant ton royaume.<br>Construis une <b>Bibliothèque</b> pour accéder au savoir avancé.</div>`;
+    return;
+  }
+  if(avail.length){ const t=document.createElement('div'); t.className='secTitle'; t.textContent='Disponibles'; p.appendChild(t); }
+  avail.forEach(r=>{
+    const c={}; for(const k in r.cost) c[k]=Math.ceil(r.cost[k]*(k==='mana'?e.researchCostMul:1));
+    const ok=canAfford(c);
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML=`<div class="ico">${r.em}</div><div class="mid">
+      <div class="nm">${r.nm}</div><div class="desc">${r.desc}</div>
+      <div class="cost">${costHTML(c)}</div></div>`;
+    const btn=document.createElement('button'); btn.className='buy alt'; btn.textContent='Étudier'; btn.disabled=!ok;
+    btn.onclick=()=>{ if(!canAfford(c))return; pay(c); S.research.push(r.id); toast(`📖 ${r.nm} étudiée !`); fullRender(); save(); };
+    card.appendChild(btn); p.appendChild(card);
+  });
+  if(done.length){ const t=document.createElement('div'); t.className='secTitle'; t.textContent='Maîtrisées'; p.appendChild(t);
+    done.forEach(r=>{ const card=document.createElement('div'); card.className='card'; card.style.opacity=.6;
+      card.innerHTML=`<div class="ico">${r.em}</div><div class="mid"><div class="nm">${r.nm} ✓</div>
+        <div class="desc">${r.desc}</div></div>`; p.appendChild(card); });
+  }
+}
+
+function renderDecree(p){
+  let any=false;
+  DECREES.forEach(set=>{
+    const unlocked=S.lifetimeGold>=set.reqGold;
+    const chosen=S.decrees[set.id];
+    if(!unlocked && !chosen){ return; }
+    any=true;
+    const t=document.createElement('div'); t.className='secTitle'; t.textContent=set.nm; p.appendChild(t);
+    const wrap=document.createElement('div'); wrap.className='choices';
+    set.options.forEach(o=>{
+      const div=document.createElement('div'); div.className='choice'+(chosen===o.id?' chosen':'');
+      div.innerHTML=`<div class="ct">${o.nm} ${chosen===o.id?'✓':''}</div><div class="cd">${o.desc}</div>`;
+      if(!chosen){ div.onclick=()=>{
+        modal({title:o.nm, em:'📜', body:`${o.desc}<br><br><b>Ce choix est définitif</b> pour cette ère du royaume. Tu pourras le réinitialiser lors d'une Ascension.`,
+          btns:[
+            {label:'Promulguer ce décret', primary:true, fn:()=>{ S.decrees[set.id]=o.id; toast(`📜 ${o.nm} promulgué !`); fullRender(); save(); }},
+            {label:'Réfléchir encore', fn:()=>{}},
+          ]});
+      }; }
+      wrap.appendChild(div);
+    });
+    p.appendChild(wrap);
+  });
+  if(!any){
+    const next=DECREES[0];
+    p.innerHTML=`<div class="hint">Les décrets royaux offrent des choix <b>exclusifs</b> qui orientent ta stratégie.<br>
+      Atteins <b>${fmt(next.reqGold)} 🪙 d'or cumulé</b> pour promulguer ton premier décret.<br>
+      <span style="color:var(--ink-dim)">Cumulé : ${fmt(S.lifetimeGold)} 🪙</span></div>`;
+  }
+}
+
+function relicGain(){
+  // reliques gagnées à l'ascension, basé sur l'or cumulé de l'ère
+  return Math.floor(Math.pow(S.totalGold/1e6, 0.5));
+}
+function renderAscend(p){
+  const gain=relicGain();
+  const head=document.createElement('div');
+  head.innerHTML=`<div class="card" style="display:block">
+    <div class="nm" style="font-size:15px">✦ Ascension</div>
+    <div class="desc" style="margin-top:6px">Recommence une nouvelle ère : tu perds bâtiments, ressources, recherches et décrets,
+    mais tu gagnes des <b>Reliques ✦</b> qui octroient des bonus permanents et cumulatifs.</div>
+    <div class="cost" style="margin-top:8px"><span class="yes">Gain à l'ascension : <b style="color:#c9b8ff">✦ ${fmt(gain)}</b></span></div>
+  </div>`;
+  p.appendChild(head);
+  const btn=document.createElement('button'); btn.className='buy'; btn.style.width='100%'; btn.style.margin='2px 0 12px';
+  btn.style.padding='12px'; btn.textContent= gain>0?`Ascensionner pour ✦ ${fmt(gain)}`:'Pas encore assez d\'or cumulé';
+  btn.disabled=gain<1;
+  btn.onclick=()=>{ modal({title:'Ascensionner ?', em:'✦',
+    body:`Tu gagnes <b style="color:#c9b8ff">✦ ${fmt(gain)} reliques</b>. Ton royaume actuel sera dissous. Les bonus de reliques, eux, sont conservés à jamais.`,
+    btns:[{label:`Oui, commencer une nouvelle ère`, primary:true, fn:doAscend},{label:'Annuler', fn:()=>{}}]}); };
+  p.appendChild(btn);
+
+  const t=document.createElement('div'); t.className='secTitle'; t.textContent='Bonus de reliques (permanents)'; p.appendChild(t);
+  RELIC_UP.forEach(u=>{
+    const lvl=relicLvl(u.id); const cost=Math.ceil(u.baseCost*Math.pow(u.growth,lvl));
+    const maxed=lvl>=u.max; const ok=S.relics>=cost && !maxed;
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML=`<div class="ico">${u.em}</div><div class="mid">
+      <div class="nm">${u.nm} ${lvl>0?`<span class="lvl">Niv ${lvl}</span>`:''}</div>
+      <div class="desc">${u.desc}</div>
+      <div class="cost">${maxed?'<span class="yes">Niveau maximum atteint</span>':`<span class="${ok?'yes':'no'}">✦ ${fmt(cost)}</span>`}</div></div>`;
+    const b=document.createElement('button'); b.className='buy'; b.textContent=maxed?'Max':'Acheter'; b.disabled=!ok;
+    b.onclick=()=>{ if(S.relics<cost||maxed)return; S.relics-=cost; S.relicUp[u.id]=(S.relicUp[u.id]||0)+1; toast(`✦ ${u.nm} amélioré !`); fullRender(); save(); };
+    card.appendChild(b); p.appendChild(card);
+  });
+}
+
+function doAscend(){
+  const gain=relicGain();
+  const keepRelics=S.relics+gain, relicUp=S.relicUp, lifetime=S.lifetimeGold;
+  S=NEW_GAME();
+  S.relics=keepRelics; S.relicUp=relicUp; S.lifetimeGold=lifetime;
+  // héritage : or de départ
+  S.res.gold += 250*relicLvl('legacy');
+  // reset visuel
+  for(const id in meshes){ buildGroup.remove(meshes[id]); }
+  for(const id in meshes) delete meshes[id];
+  toast(`✦ Nouvelle ère ! +${fmt(gain)} reliques`);
+  fullRender(); save();
+}
+
+/* =========================================================
+   SCEAU DE RÉCOLTE
+   ========================================================= */
+function pulseHarvest(){ const h=$('#harvest'); h.style.transform='scale(1.08)'; setTimeout(()=>h.style.transform='',90); }
+function doHarvest(ev){
+  const v=harvestValue();
+  S.res.gold+=v; S.totalGold+=v; S.lifetimeGold+=v;
+  S.combo++; S.comboT=2.2; // fenêtre pour garder le combo
+  // floating number
+  const f=document.createElement('div'); f.className='float'; f.textContent='+'+fmt(v)+' 🪙';
+  const x=(ev&&ev.touches&&ev.touches[0]?ev.touches[0].clientX:innerWidth/2);
+  const y=(ev&&ev.touches&&ev.touches[0]?ev.touches[0].clientY:innerHeight*0.42);
+  f.style.left=(x-20)+'px'; f.style.top=(y-30)+'px'; document.body.appendChild(f); setTimeout(()=>f.remove(),1000);
+  updateCombo(); renderTop(); pulseHarvest();
+}
+function updateCombo(){
+  const c=$('#combo'), bar=$('#comboBar'), fill=bar.querySelector('i');
+  if(S.combo>1){ c.textContent=`Combo ×${S.combo}`; c.style.opacity=1; bar.style.opacity=1;
+    fill.style.width=Math.min(100,(S.comboT/2.2)*100)+'%';
+  } else { c.style.opacity=0; bar.style.opacity=0; }
+}
+
+/* =========================================================
+   ÉVÉNEMENTS aléatoires (décisions)
+   ========================================================= */
+const EVENTS=[
+  {em:'🧙', t:'Marchand mystérieux', b:'Un marchand propose une fiole de potion contre 20% de ton or. « Elle décuplera ta prochaine heure de récolte ! »',
+   opts:[
+     {l:'Acheter la potion', s:'Coûte 20% d\'or, +200% production 90s', fn:()=>{ S.res.gold*=0.8; tempBuffs.push({mul:3, until:Date.now()+90000}); toast('⚗️ Production ×3 pendant 90s !'); }},
+     {l:'Le renvoyer', s:'Garde ton or', fn:()=>{}},
+   ]},
+  {em:'🐉', t:'Un dragon survole le royaume', b:'La bête réclame un tribut. Lui céder du Bois et de la Pierre… ou tenter de le chasser ?',
+   opts:[
+     {l:'Payer le tribut', s:'Perds des matériaux, gagne de l\'or et sa faveur', fn:()=>{ S.res.wood*=0.7; S.res.stone*=0.7; S.res.gold+=harvestValue()*15; toast('🐉 Le dragon laisse un trésor en partant.'); }},
+     {l:'Le chasser', s:'50% : grosse récompense / 50% : il brûle des récoltes', fn:()=>{ if(Math.random()<0.5){ S.res.gold+=harvestValue()*40; S.res.mana+=prodPerSec().mana*120+20; toast('⚔️ Dragon vaincu ! Butin légendaire !'); } else { S.res.gold*=0.85; toast('🔥 Le dragon a brûlé une partie du trésor…'); } }},
+   ]},
+  {em:'🎉', t:'Festival du royaume', b:'Le peuple est en liesse. Financer les festivités booste le moral et la production.',
+   opts:[
+     {l:'Financer le festival', s:'+120% production 60s', fn:()=>{ tempBuffs.push({mul:2.2, until:Date.now()+60000}); toast('🎉 Festival ! Production ×2.2 pendant 60s'); }},
+     {l:'Une autre fois', s:'', fn:()=>{}},
+   ]},
+  {em:'⛏️', t:'Filon découvert', b:'Des mineurs ont percé un riche filon ! Un afflux immédiat de pierre et d\'or.',
+   opts:[
+     {l:'Exploiter le filon', s:'Gain instantané', fn:()=>{ S.res.stone+=prodPerSec().stone*200+30; S.res.gold+=harvestValue()*8; toast('💎 Filon exploité !'); }},
+   ]},
+];
+let nextEvent=Date.now()+1000*90;
+function maybeEvent(){
+  if(Date.now()<nextEvent) return;
+  if($('#modalWrap').style.display==='flex') { nextEvent=Date.now()+30000; return; }
+  // pas d'event tant que le royaume est minuscule
+  if((S.lvl['farm']||0)<2){ nextEvent=Date.now()+30000; return; }
+  const ev=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  nextEvent=Date.now()+1000*(80+Math.random()*70);
+  modal({title:ev.t, em:ev.em, body:ev.b,
+    btns:ev.opts.map(o=>({label:o.l, sub:o.s, primary:false, fn:()=>{ o.fn(); fullRender(); save(); }}))});
+}
+
+/* =========================================================
+   MODAL générique
+   ========================================================= */
+function modal({title, em, body, btns}){
+  const m=$('#modal'); m.innerHTML='';
+  m.innerHTML=`${em?`<div class="mEm">${em}</div>`:''}<div class="mTtl">${title}</div><div class="mBody">${body}</div>`;
+  const wrap=document.createElement('div'); wrap.className='mBtns';
+  btns.forEach(b=>{ const btn=document.createElement('button'); btn.className='mBtn'+(b.primary?' primary':'');
+    btn.innerHTML=`${b.label}${b.sub?`<small>${b.sub}</small>`:''}`;
+    btn.onclick=()=>{ closeModal(); b.fn&&b.fn(); }; wrap.appendChild(btn); });
+  m.appendChild(wrap);
+  $('#modalWrap').style.display='flex';
+}
+function closeModal(){ $('#modalWrap').style.display='none'; }
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+let toastT;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200); }
+
+/* =========================================================
+   BOUCLE DE JEU
+   ========================================================= */
+function fullRender(){ renderTop(); renderTabs(); renderPanel(); }
+
+let acc=0;
+function tick(dt){
+  const ps=prodPerSec();
+  for(const k in ps){ S.res[k]+=ps[k]*dt; if(k==='gold'){ S.totalGold+=ps[k]*dt; S.lifetimeGold+=ps[k]*dt; } }
+  // combo decay
+  if(S.combo>0){ S.comboT-=dt; if(S.comboT<=0){ S.combo=0; } updateCombo(); }
+  maybeEvent();
+}
+
+function gameLoop(){
+  const now=performance.now(); const dt=Math.min(0.25,(now-(gameLoop._t||now))/1000); gameLoop._t=now;
+  acc+=dt;
+  tick(dt);
+  // refresh UI léger ~5x/s
+  if(acc>0.2){ acc=0; renderTop(); if(S.tab==='build'||S.tab==='research'||S.tab==='ascend') updateBuyStates(); }
+  setTimeout(gameLoop,1000/30);
+}
+// met à jour seulement les états "achetable" sans tout reconstruire (perf + ne casse pas le scroll)
+function updateBuyStates(){
+  if(S.tab==='build'){
+    document.querySelectorAll('#panel .card').forEach((card,i)=>{
+      const b=BUILDINGS[i]; if(!b) return; const btn=card.querySelector('.buy'); if(!btn) return;
+      const ok=canAfford(buildCost(b)); btn.disabled=!ok;
+      const cost=card.querySelector('.cost'); if(cost) cost.innerHTML=costHTML(buildCost(b));
+    });
+  }
+}
+
+/* =========================================================
+   OFFLINE PROGRESS
+   ========================================================= */
+function applyOffline(){
+  const now=Date.now(); const elapsed=Math.min((now-S.lastSave)/1000, 8*3600); // cap 8h
+  if(elapsed<60) return;
+  const ps=prodPerSec(); const g={};
+  let total=0;
+  for(const k in ps){ const amt=ps[k]*elapsed*0.5; if(amt>0.5){ S.res[k]+=amt; g[k]=amt; if(k==='gold'){S.totalGold+=amt;S.lifetimeGold+=amt;} total+=amt; } }
+  if(total<1) return;
+  const mins=Math.floor(elapsed/60);
+  const line=Object.keys(g).map(k=>`${RES[k].ic} +${fmt(g[k])}`).join('   ');
+  modal({title:'Pendant ton absence', em:'🌙',
+    body:`Ton royaume a continué de prospérer pendant <b>${mins} min</b> (rendement passif à 50%) :<br><br><div style="font-size:16px;color:var(--ink)">${line}</div>`,
+    btns:[{label:'Récupérer le butin', primary:true, fn:()=>{ renderTop(); }}]});
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+async function boot(){
+  initScene();
+  await load();
+  refreshAllBuildings();
+  applyOffline();
+  fullRender();
+  // sceau de récolte
+  const h=$('#harvest');
+  h.addEventListener('touchstart',e=>{ e.preventDefault(); doHarvest(e); },{passive:false});
+  h.addEventListener('mousedown',e=>{ doHarvest(e); });
+  // sauvegarde périodique + à la fermeture
+  setInterval(save, 8000);
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden) save(); });
+  window.addEventListener('pagehide', save);
+  window.addEventListener('beforeunload', save);
+  // intro brand fade
+  $('#brand').style.transition='opacity 1.2s'; $('#brand').style.opacity='1';
+  setTimeout(()=>$('#brand').style.opacity='0',3500);
+  gameLoop();
+}
+boot();
+</script>
+</body>
+</html>
